@@ -1,36 +1,44 @@
 import { User } from "../models/user.model"; // Modèle Sequelize
 import jwt from "jsonwebtoken"; // Pour générer le JWT
-import { Buffer } from "buffer"; // Pour décoder Base64
 import { notFound } from "../error/NotFoundError";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key"; // Clé secrète pour signer le token
+const JWT_SECRET = process.env.JWT_SECRET || "thisIsTheSecret"; // Clé secrète pour signer le token
 
 export class AuthenticationService {
-  public async authenticate(
-    username: string,
-    password: string
-  ): Promise<string> {
-    // Recherche l'utilisateur dans la base de données
+  async getScopes(user: User): Promise<string[]> {
+    switch (user.username) {
+      case "admin":
+        return ["read:book", "create:book", "update:book", "delete:book", "read:bookCollection", "create:bookCollection", "update:bookCollection", "delete:bookCollection", "read:user", "create:user", "update:user", "delete:user","read:author", "create:author", "update:author", "delete:author"];
+      case "gerant":
+        return ["read:book", "create:book", "update:book", "read:user", "create:user", "update:user", "update:all", "delete:BookCollection", "read:author", "create:author", "update:author", "delete:author"];
+      case "utilisateur":
+        return ["read:user", "read:book", "read:bookCollection", "read:author", "create:BookCollection", "update:BookCollection", "delete:BookCollection"];
+      default:
+        return ["read:user", "read:book", "read:bookCollection", "read:author"];
+    }
+  }
+
+  public async authenticate(username: string, password: string): Promise<string> {
     const user = await User.findOne({ where: { username } });
 
     if (!user) {
       throw notFound("User");
     }
 
-    // Décoder le mot de passe stocké en base de données
-    const decodedPassword = Buffer.from(user.password, "base64").toString(
-      "utf-8"
-    );
+    const decodedPassword = atob(user.password);
 
-    // Vérifie si le mot de passe est correct
     if (password === decodedPassword) {
-      // Si l'utilisateur est authentifié, on génère un JWT
-      const token = jwt.sign({ username: user.username }, JWT_SECRET, {
-        expiresIn: "1h",
-      });
+      const scopes = await this.getScopes(user);
+
+      const token = jwt.sign(
+        { username: user.username, scopes },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+
       return token;
     } else {
-      let error = new Error("Wrong password");
+      const error = new Error("Wrong password");
       (error as any).status = 403;
       throw error;
     }

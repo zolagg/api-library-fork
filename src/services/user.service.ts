@@ -25,8 +25,13 @@ export class UserService {
     username: string,
     password: string,
   ): Promise<UserOutputDTO> {
+    const encodedPassword = btoa(password);
     return UserMapper.toOutputDto(
-      await User.create({ username: username, password: password }),
+      await User.create({
+        username,
+        password: encodedPassword,
+      }),
+
     );
   }
 
